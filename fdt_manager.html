@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מערכת ניהול תקלות FDT</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f0f4f8;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --accent: #e85d2f;
+  --accent2: #2563eb;
+  --green: #16a34a;
+  --yellow: #d97706;
+  --red: #dc2626;
+  --text: #1e293b;
+  --muted: #64748b;
+  --shadow: 0 2px 8px rgba(0,0,0,.08);
+  --font: 'Heebo', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;}
+
+/* NAV */
+.nav{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);border-bottom:none;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(0,0,0,.15);}
+.nav-title{font-size:18px;font-weight:800;color:#f97316;}
+.nav-tabs{display:flex;gap:6px;}
+.tab{padding:7px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);font-family:var(--font);font-size:14px;cursor:pointer;transition:all .2s;}
+.tab.active{background:#f97316;color:white;border-color:#f97316;}
+.tab:hover:not(.active){background:rgba(255,255,255,.15);}
+
+/* PAGES */
+.page{display:none;padding:20px;max-width:800px;margin:0 auto;}
+.page.active{display:block;}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow);}
+
+/* SEARCH BAR */
+.search-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.search-bar input, .search-bar select{
+  padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);
+  background:white;color:var(--text);font-family:var(--font);font-size:14px;
+  flex:1;min-width:140px;box-shadow:var(--shadow);
+}
+.search-bar input:focus, .search-bar select:focus{outline:none;border-color:var(--accent2);}
+
+/* TICKET CARD */
+.ticket{background:white;border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:all .2s;box-shadow:var(--shadow);}
+.ticket:hover{border-color:var(--accent2);box-shadow:0 4px 16px rgba(37,99,235,.12);transform:translateY(-1px);}
+.ticket-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;}
+.ticket-id{font-size:13px;font-weight:700;color:var(--accent2);}
+.ticket-worker{font-size:13px;color:var(--muted);}
+.ticket-address{font-size:15px;font-weight:600;margin-bottom:6px;color:var(--text);}
+.ticket-meta{display:flex;gap:8px;flex-wrap:wrap;}
+.badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}
+.badge-finish{background:#dcfce7;color:#16a34a;}
+.badge-open{background:#fee2e2;color:#dc2626;}
+.badge-wait{background:#fef3c7;color:#d97706;}
+.badge-cont{background:#dbeafe;color:#2563eb;}
+.badge-type{background:#f1f5f9;color:#64748b;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.modal{background:white;border:1px solid var(--border);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:white;z-index:1;}
+.modal-header h2{font-size:17px;font-weight:700;color:var(--text);}
+.modal-close{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;}
+.modal-body{padding:20px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:500;}
+.field .val{font-size:15px;font-weight:600;color:var(--text);}
+.field input, .field select, .field textarea{
+  width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);
+  background:white;color:var(--text);font-family:var(--font);font-size:15px;
+}
+.field textarea{resize:vertical;min-height:80px;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent2);}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.modal-footer{padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;background:#f8fafc;border-radius:0 0 20px 20px;}
+
+/* BUTTONS */
+.btn{padding:9px 20px;border-radius:10px;border:none;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn:active{opacity:.8;}
+.btn:hover{opacity:.9;transform:translateY(-1px);}
+.btn-primary{background:var(--accent2);color:white;}
+.btn-green{background:var(--green);color:white;}
+.btn-gray{background:#f1f5f9;color:var(--text);border:1px solid var(--border);}
+.btn-red{background:#fee2e2;color:var(--red);border:1px solid #fecaca;}
+.btn-wa{background:#25D366;color:white;}
+
+/* WORKERS PAGE */
+.worker-list{display:flex;flex-direction:column;gap:8px;}
+.worker-item{background:white;border:1.5px solid var(--border);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:var(--shadow);}
+.worker-name{font-size:15px;font-weight:600;color:var(--text);}
+.worker-actions{display:flex;gap:8px;}
+.add-worker{display:flex;gap:10px;margin-bottom:16px;}
+.add-worker input{flex:1;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:white;color:var(--text);font-family:var(--font);font-size:15px;box-shadow:var(--shadow);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px;}
+.stat-card{background:white;border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;box-shadow:var(--shadow);}
+.stat-num{font-size:30px;font-weight:800;margin-bottom:4px;}
+.stat-label{font-size:12px;color:var(--muted);font-weight:500;}
+
+/* WORKER VIEW */
+.worker-view{max-width:600px;margin:0 auto;}
+.wv-header{text-align:center;padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.wv-name{font-size:22px;font-weight:800;color:var(--accent2);margin-bottom:4px;}
+.wv-count{font-size:14px;color:var(--muted);}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:20px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.15);}
+
+.copy-link{background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:13px;color:var(--accent2);word-break:break-all;margin-bottom:10px;}
+
+@media(max-width:500px){
+  .nav-title{font-size:15px;}
+  .tab{padding:6px 10px;font-size:12px;}
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+  .page{padding:12px;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-title">🔧 FDT ניהול תקלות</div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showPage('manager')">מנהל</button>
+    <button class="tab" onclick="showPage('workers')">עובדים</button>
+    <button class="tab" onclick="showPage('stats')">סטטיסטיקה</button>
+  </div>
+</nav>
+
+<!-- MANAGER PAGE -->
+<div class="page active" id="page-manager">
+  <div class="search-bar">
+    <input id="searchInput" type="text" placeholder="🔍 חיפוש לפי עיר, כתובת, טיקט..." oninput="renderTickets()">
+    <select id="filterWorker" onchange="renderTickets()">
+      <option value="">כל העובדים</option>
+    </select>
+    <select id="filterStatus" onchange="renderTickets()">
+      <option value="">כל הסטטוסים</option>
+      <option value="סגור">סגור</option>
+      <option value="בהמתנה">בהמתנה</option>
+      <option value="המשך טיפול">המשך טיפול</option>
+      <option value="FINISH">FINISH</option>
+      <option value="">פתוח</option>
+    </select>
+  </div>
+  <div id="ticketList"></div>
+  <div id="loadingMsg" style="text-align:center;padding:40px;color:var(--muted);">⏳ טוען נתונים...</div>
+</div>
+
+<!-- WORKERS PAGE -->
+<div class="page" id="page-workers">
+  <div class="add-worker">
+    <input id="newWorkerInput" type="text" placeholder="שם עובד חדש..." onkeydown="if(event.key==='Enter')addWorker()">
+    <button class="btn btn-primary" onclick="addWorker()">+ הוסף</button>
+  </div>
+  <div class="worker-list" id="workerList"></div>
+</div>
+
+<!-- STATS PAGE -->
+<div class="page" id="page-stats">
+  <div class="stats-grid" id="statsGrid"></div>
+  <div id="workerStats"></div>
+</div>
+
+<!-- TICKET MODAL -->
+<div class="overlay" id="ticketOverlay" onclick="closeOverlayOutside(event,'ticketOverlay')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTicketId">טיקט #</h2>
+      <button class="modal-close" onclick="closeOverlay('ticketOverlay')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div class="field"><label>עיר</label><div class="val" id="mCity"></div></div>
+        <div class="field"><label>מתחם</label><div class="val" id="mComplex"></div></div>
+        <div class="field"><label>רחוב ובית</label><div class="val" id="mStreet"></div></div>
+        <div class="field"><label>ארונית</label><div class="val" id="mBox"></div></div>
+        <div class="field"><label>סוג עבודה</label><div class="val" id="mWorkType"></div></div>
+        <div class="field"><label>קבלן מבצע</label><div class="val" id="mWorker"></div></div>
+        <div class="field"><label>תאריך כניסה</label><div class="val" id="mDateIn"></div></div>
+        <div class="field"><label>זיהוי תקלה</label><div class="val" id="mFaultId"></div></div>
+      </div>
+      <hr class="divider">
+      <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px;">✏️ עדכון סגירה</div>
+      <div class="field">
+        <label>סוג סגירת תקלה</label>
+        <input id="editCloseType" type="text" placeholder="סוג סגירה...">
+      </div>
+      <div class="field">
+        <label>סטטוס</label>
+        <select id="editStatus">
+          <option value="">-- בחר --</option>
+          <option value="סגור">סגור</option>
+          <option value="בהמתנה">בהמתנה</option>
+          <option value="המשך טיפול">המשך טיפול</option>
+          <option value="FINISH">FINISH</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>תאריך סגירה</label>
+        <input id="editCloseDate" type="date">
+      </div>
+      <div class="field">
+        <label>פתרון</label>
+        <textarea id="editSolution" placeholder="תיאור הפתרון..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-wa" onclick="sendToWhatsApp()">📲 שלח WhatsApp</button>
+      <button class="btn btn-gray" onclick="closeOverlay('ticketOverlay')">סגור</button>
+      <button class="btn btn-green" onclick="saveTicketChanges()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEND WHATSAPP MODAL -->
+<div class="overlay" id="waOverlay" onclick="closeOverlayOutside(event,'waOverlay')">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h2>📲 שליחה ב-WhatsApp</h2>
+      <button class="modal-close" onclick="closeOverlay('waOverlay')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>בחר עובד לשליחה</label>
+        <select id="waSendWorker" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--font);font-size:15px;"></select>
+      </div>
+      <div class="field"><label>קישור לטיקט</label>
+        <div class="copy-link" id="waLink"></div>
+      </div>
+      <div class="field"><label>הודעה מוכנה</label>
+        <textarea id="waMessage" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--font);font-size:14px;min-height:120px;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeOverlay('waOverlay')">סגור</button>
+      <button class="btn btn-wa" onclick="openWhatsApp()">פתח WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ───────────────────────────────────
+const SHEET_ID = '18xXvgAqArho6FzCEMP5csl63XMvzv6TdkKNU07gGMok';
+const SHEET_NAME = 'הרחבות';
+const APP_URL = window.location.href.split('?')[0];
+
+// Column indices (0-based)
+const COL = {
+  dateIn:0, sentBy:1, sentTo:2, ticket:3, city:4, complex:5,
+  street:6, box:7, workType:8, worker:9, dateKapaza:10,
+  faultId:11, closeType:12, status:13, closeDate:14, solution:15, notes:16
+};
+
+// ── STATE ────────────────────────────────────
+let allRows = [];
+let currentTicketRow = null;
+let workers = JSON.parse(localStorage.getItem('fdt_workers') || 'null') || [
+  'אור דיין','אור מימון','אליה מינס','אלירן סלע','אנטולי גולוקוז','אסף חאזי',
+  'בן מילשטין','גדי אדמוב','גיל אבוטבול','דוד בירקי','דוד רזניק','דימה אברמוב',
+  'דימה סמיונוב','דימה קודימוב','ולדימיר קירזנר','ניב ספדה','נריה מעטוף',
+  'סלבה אברוטוב','סרגיי ווריבודסקי','ראובן יצחק','רומה דויטשוילי','רוני דרמון',
+  'שואהנה','שלו לוי','עמירן מכלוף','גנדי','נדצ\'יב','אלכסיי דניסנקו',
+  'פנחס בראון','יונתן סיסאי'
+];
+
+function saveWorkers(){ localStorage.setItem('fdt_workers', JSON.stringify(workers)); }
+
+// ── LOAD DATA FROM GOOGLE SHEETS ─────────────
+async function loadData(){
+  try{
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const r = await fetch(url);
+    const text = await r.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows;
+    allRows = rows.map((row,i)=>({
+      rowIndex: i+2, // sheet row (1=header)
+      data: row.c.map(c=>c?c.v||c.f||'':'')
+    }));
+    document.getElementById('loadingMsg').style.display='none';
+    renderTickets();
+    renderStats();
+    renderWorkers();
+    populateWorkerFilter();
+  }catch(e){
+    document.getElementById('loadingMsg').innerHTML='⚠️ שגיאה בטעינת נתונים. ודא שהגיליון שיתופי.';
+  }
+}
+
+// ── RENDER TICKETS ───────────────────────────
+function renderTickets(){
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const filterW = document.getElementById('filterWorker').value;
+  const filterS = document.getElementById('filterStatus').value;
+
+  let filtered = allRows.filter(r=>{
+    const d = r.data;
+    const matchSearch = !search ||
+      String(d[COL.ticket]).includes(search) ||
+      String(d[COL.city]).toLowerCase().includes(search) ||
+      String(d[COL.street]).toLowerCase().includes(search) ||
+      String(d[COL.box]).toLowerCase().includes(search);
+    const matchWorker = !filterW || d[COL.worker] === filterW;
+    const matchStatus = filterS === '' ? true : d[COL.status] === filterS;
+    return matchSearch && matchWorker && matchStatus;
+  }).slice(-200).reverse();
+
+  const list = document.getElementById('ticketList');
+  if(!filtered.length){ list.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">לא נמצאו תקלות</div>'; return; }
+
+  list.innerHTML = filtered.map(r=>{
+    const d = r.data;
+    const status = d[COL.status];
+    const badgeClass = status==='FINISH'||status==='סגור'?'badge-finish':
+                       status==='בהמתנה'?'badge-wait':
+                       status==='המשך טיפול'?'badge-cont':'badge-open';
+    const statusLabel = status||'פתוח';
+    return `<div class="ticket" onclick="openTicket(${r.rowIndex})">
+      <div class="ticket-header">
+        <span class="ticket-id">#${d[COL.ticket]}</span>
+        <span class="ticket-worker">👷 ${d[COL.worker]||'—'}</span>
+      </div>
+      <div class="ticket-address">📍 ${d[COL.city]} | ${d[COL.street]} | ${d[COL.box]}</div>
+      <div class="ticket-meta">
+        <span class="badge ${badgeClass}">${statusLabel}</span>
+        <span class="badge badge-type">${d[COL.workType]||'—'}</span>
+        ${d[COL.faultId]?`<span class="badge badge-type">${d[COL.faultId]}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function populateWorkerFilter(){
+  const sel = document.getElementById('filterWorker');
+  sel.innerHTML = '<option value="">כל העובדים</option>' +
+    workers.map(w=>`<option value="${w}">${w}</option>`).join('');
+}
+
+// ── OPEN TICKET ──────────────────────────────
+function openTicket(rowIndex){
+  const r = allRows.find(r=>r.rowIndex===rowIndex);
+  if(!r) return;
+  currentTicketRow = r;
+  const d = r.data;
+  document.getElementById('modalTicketId').innerText = `טיקט #${d[COL.ticket]}`;
+  document.getElementById('mCity').innerText    = d[COL.city]||'—';
+  document.getElementById('mComplex').innerText = d[COL.complex]||'—';
+  document.getElementById('mStreet').innerText  = d[COL.street]||'—';
+  document.getElementById('mBox').innerText     = d[COL.box]||'—';
+  document.getElementById('mWorkType').innerText= d[COL.workType]||'—';
+  document.getElementById('mWorker').innerText  = d[COL.worker]||'—';
+  document.getElementById('mFaultId').innerText = d[COL.faultId]||'—';
+  document.getElementById('mDateIn').innerText  = formatDate(d[COL.dateIn]);
+  document.getElementById('editCloseType').value = d[COL.closeType]||'';
+  document.getElementById('editStatus').value    = d[COL.status]||'';
+  document.getElementById('editSolution').value  = d[COL.solution]||'';
+  // date
+  const cd = d[COL.closeDate];
+  if(cd && typeof cd === 'number'){
+    const date = new Date(Math.round((cd-25569)*86400*1000));
+    document.getElementById('editCloseDate').value = date.toISOString().split('T')[0];
+  } else {
+    document.getElementById('editCloseDate').value = '';
+  }
+  document.getElementById('ticketOverlay').classList.add('open');
+}
+
+// ── SAVE TO GOOGLE SHEETS ────────────────────
+async function saveTicketChanges(){
+  if(!currentTicketRow) return;
+  const closeType = document.getElementById('editCloseType').value;
+  const status    = document.getElementById('editStatus').value;
+  const closeDate = document.getElementById('editCloseDate').value;
+  const solution  = document.getElementById('editSolution').value;
+  const row = currentTicketRow.rowIndex;
+
+  // Update local data
+  currentTicketRow.data[COL.closeType]  = closeType;
+  currentTicketRow.data[COL.status]     = status;
+  currentTicketRow.data[COL.solution]   = solution;
+
+  // Note: Direct write to Google Sheets requires Apps Script
+  // Show message with manual update instructions
+  showToast('✅ שמור מקומית. לעדכון בגיליון — השתמש בסקריפט Apps Script');
+  closeOverlay('ticketOverlay');
+  renderTickets();
+  renderStats();
+}
+
+// ── WHATSAPP ─────────────────────────────────
+function sendToWhatsApp(){
+  if(!currentTicketRow) return;
+  const d = currentTicketRow.data;
+  const worker = d[COL.worker];
+
+  // Populate worker select
+  const sel = document.getElementById('waSendWorker');
+  sel.innerHTML = workers.map(w=>`<option value="${w}" ${w===worker?'selected':''}>${w}</option>`).join('');
+
+  updateWAMessage();
+  sel.onchange = updateWAMessage;
+
+  closeOverlay('ticketOverlay');
+  document.getElementById('waOverlay').classList.add('open');
+}
+
+function updateWAMessage(){
+  if(!currentTicketRow) return;
+  const d = currentTicketRow.data;
+  const worker = document.getElementById('waSendWorker').value;
+  const link = `${APP_URL}?worker=${encodeURIComponent(worker)}`;
+  document.getElementById('waLink').innerText = link;
+
+  const msg = `שלום ${worker} 👋\n\nתקלה חדשה ממתינה לטיפולך:\n\n` +
+    `🎫 טיקט: *${d[COL.ticket]}*\n` +
+    `📍 עיר: *${d[COL.city]}*\n` +
+    `🏠 כתובת: *${d[COL.street]}*\n` +
+    `📦 ארונית: *${d[COL.box]}*\n` +
+    `🔧 סוג עבודה: *${d[COL.workType]}*\n\n` +
+    `לצפייה ועדכון התקלה:\n${link}`;
+  document.getElementById('waMessage').value = msg;
+}
+
+function openWhatsApp(){
+  const msg = document.getElementById('waMessage').value;
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
+}
+
+// ── WORKERS PAGE ─────────────────────────────
+function renderWorkers(){
+  const list = document.getElementById('workerList');
+  list.innerHTML = workers.map((w,i)=>`
+    <div class="worker-item">
+      <span class="worker-name">👷 ${w}</span>
+      <div class="worker-actions">
+        <button class="btn btn-wa" style="padding:6px 12px;font-size:13px;" onclick="sendWorkerLink('${w}')">📲 WhatsApp</button>
+        <button class="btn btn-red" style="padding:6px 12px;font-size:13px;" onclick="removeWorker(${i})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function addWorker(){
+  const inp = document.getElementById('newWorkerInput');
+  const name = inp.value.trim();
+  if(!name) return;
+  workers.push(name);
+  saveWorkers();
+  inp.value='';
+  renderWorkers();
+  populateWorkerFilter();
+  showToast('✅ עובד נוסף');
+}
+
+function removeWorker(i){
+  if(!confirm(`למחוק את ${workers[i]}?`)) return;
+  workers.splice(i,1);
+  saveWorkers();
+  renderWorkers();
+  populateWorkerFilter();
+}
+
+function sendWorkerLink(worker){
+  const link = `${APP_URL}?worker=${encodeURIComponent(worker)}`;
+  const msg = `שלום ${worker} 👋\n\nקישור לצפייה במשימות שלך:\n${link}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ── STATS ────────────────────────────────────
+function renderStats(){
+  const total = allRows.length;
+  const finish = allRows.filter(r=>r.data[COL.status]==='FINISH'||r.data[COL.status]==='סגור').length;
+  const waiting = allRows.filter(r=>r.data[COL.status]==='בהמתנה').length;
+  const cont = allRows.filter(r=>r.data[COL.status]==='המשך טיפול').length;
+  const open = total - finish - waiting - cont;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${total}</div><div class="stat-label">סה"כ תקלות</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green)">${finish}</div><div class="stat-label">סגורות</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${open}</div><div class="stat-label">פתוחות</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--yellow)">${waiting}</div><div class="stat-label">בהמתנה</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${cont}</div><div class="stat-label">המשך טיפול</div></div>`;
+
+  // per worker stats
+  const wStats = {};
+  allRows.forEach(r=>{
+    const w = r.data[COL.worker];
+    if(!w) return;
+    if(!wStats[w]) wStats[w]={total:0,done:0};
+    wStats[w].total++;
+    if(r.data[COL.status]==='FINISH'||r.data[COL.status]==='סגור') wStats[w].done++;
+  });
+
+  const sorted = Object.entries(wStats).sort((a,b)=>b[1].total-a[1].total);
+  document.getElementById('workerStats').innerHTML = `
+    <div style="font-size:15px;font-weight:700;margin-bottom:10px;color:var(--muted);">סטטיסטיקה לפי עובד</div>
+    ${sorted.map(([w,s])=>`
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600;">👷 ${w}</span>
+        <span style="color:var(--muted);font-size:14px;">סה"כ: <b style="color:var(--text)">${s.total}</b> | סגורות: <b style="color:var(--green)">${s.done}</b></span>
+      </div>`).join('')}`;
+}
+
+// ── WORKER VIEW (when ?worker= in URL) ───────
+function checkWorkerView(){
+  const params = new URLSearchParams(window.location.search);
+  const worker = params.get('worker');
+  if(!worker) return false;
+
+  // Hide manager nav, show worker view
+  document.querySelector('.nav').innerHTML = `
+    <div class="nav-title">🔧 FDT</div>
+    <div style="font-size:14px;color:var(--accent2);">👷 ${worker}</div>`;
+
+  document.querySelector('#page-manager').innerHTML = `
+    <div class="worker-view">
+      <div class="wv-header">
+        <div class="wv-name">👷 ${worker}</div>
+        <div class="wv-count" id="wvCount">טוען...</div>
+      </div>
+      <div id="wvTickets"><div style="text-align:center;padding:40px;color:var(--muted);">⏳ טוען...</div></div>
+    </div>`;
+
+  loadWorkerData(worker);
+  return true;
+}
+
+async function loadWorkerData(worker){
+  try{
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const r = await fetch(url);
+    const text = await r.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows;
+    allRows = rows.map((row,i)=>({rowIndex:i+2,data:row.c.map(c=>c?c.v||c.f||'':'')}));
+
+    const myTickets = allRows.filter(r=>r.data[COL.worker]===worker &&
+      r.data[COL.status]!=='FINISH' && r.data[COL.status]!=='סגור');
+
+    document.getElementById('wvCount').innerText = `${myTickets.length} תקלות פעילות`;
+
+    if(!myTickets.length){
+      document.getElementById('wvTickets').innerHTML =
+        '<div style="text-align:center;padding:40px;color:var(--green);font-size:18px;">✅ אין תקלות פעילות</div>';
+      return;
+    }
+
+    document.getElementById('wvTickets').innerHTML = myTickets.map(r=>{
+      const d = r.data;
+      return `<div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+          <span style="color:var(--accent2);font-weight:700;">#${d[COL.ticket]}</span>
+          <span class="badge badge-open">${d[COL.status]||'פתוח'}</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px;">📍 ${d[COL.city]} | ${d[COL.street]}</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:12px;">📦 ${d[COL.box]} | 🔧 ${d[COL.workType]}</div>
+        ${d[COL.faultId]?`<div style="font-size:14px;margin-bottom:12px;padding:8px;background:rgba(248,81,73,.1);border-radius:8px;">⚠️ ${d[COL.faultId]}</div>`:''}
+        <div style="border-top:1px solid var(--border);padding-top:12px;">
+          <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ עדכון סגירה</div>
+          <div style="display:grid;gap:8px;">
+            <input type="text" id="ct_${r.rowIndex}" placeholder="סוג סגירת תקלה" value="${d[COL.closeType]||''}"
+              style="padding:9px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;color:#1e293b;font-family:var(--font);font-size:14px;width:100%;">
+            <select id="st_${r.rowIndex}"
+              style="padding:9px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;color:#1e293b;font-family:var(--font);font-size:14px;width:100%;">
+              <option value="">-- סטטוס --</option>
+              <option value="סגור" ${d[COL.status]==='סגור'?'selected':''}>סגור</option>
+              <option value="בהמתנה" ${d[COL.status]==='בהמתנה'?'selected':''}>בהמתנה</option>
+              <option value="המשך טיפול" ${d[COL.status]==='המשך טיפול'?'selected':''}>המשך טיפול</option>
+              <option value="FINISH" ${d[COL.status]==='FINISH'?'selected':''}>FINISH</option>
+            </select>
+            <input type="date" id="cd_${r.rowIndex}" value=""
+              style="padding:9px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;color:#1e293b;font-family:var(--font);font-size:14px;width:100%;">
+            <textarea id="sol_${r.rowIndex}" placeholder="פתרון..." rows="3"
+              style="padding:9px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;color:#1e293b;font-family:var(--font);font-size:14px;resize:vertical;width:100%;">${d[COL.solution]||''}</textarea>
+            <button class="btn btn-green" onclick="workerSave(${r.rowIndex})">💾 שמור עדכון</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    document.getElementById('wvTickets').innerHTML='<div style="text-align:center;padding:40px;color:var(--red);">שגיאה בטעינה</div>';
+  }
+}
+
+function workerSave(rowIndex){
+  const closeType = document.getElementById('ct_'+rowIndex).value;
+  const status    = document.getElementById('st_'+rowIndex).value;
+  const closeDate = document.getElementById('cd_'+rowIndex).value;
+  const solution  = document.getElementById('sol_'+rowIndex).value;
+  showToast('✅ נשמר! המנהל יעדכן בגיליון');
+  // In production: call Apps Script to write back to sheet
+}
+
+// ── HELPERS ──────────────────────────────────
+function formatDate(val){
+  if(!val) return '—';
+  if(typeof val === 'number'){
+    const d = new Date(Math.round((val-25569)*86400*1000));
+    return d.toLocaleDateString('he-IL');
+  }
+  return String(val);
+}
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+function closeOverlayOutside(e,id){ if(e.target.id===id) closeOverlay(id); }
+
+function showToast(msg, color){
+  const t = document.getElementById('toast');
+  t.style.background = color||'#3fb950';
+  t.style.color = '#0d1117';
+  t.innerText = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>t.style.opacity='0', 3000);
+}
+
+// ── INIT ─────────────────────────────────────
+if(!checkWorkerView()){
+  loadData();
+}
+</script>
+</body>
+</html>
