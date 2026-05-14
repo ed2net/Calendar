@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Календарь Израиля</title>
+<style>
+html,body{height:100%;margin:0;}
+body{font-family:Arial,sans-serif;background:#f3f4f6;min-height:100dvh;}
+.container{padding:8px;display:flex;flex-direction:column;height:100dvh;box-sizing:border-box;}
+.topbar{background:white;padding:8px 12px;border-radius:16px;display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px;flex-shrink:0;flex-wrap:wrap;}
+h1{margin:0;font-size:18px;}
+.topbar button{padding:5px 10px;border:none;border-radius:10px;cursor:pointer;font-size:12px;background:#e5e7eb;}
+.topbar button.active{background:#2563eb;color:white;}
+.calendar{background:white;border-radius:16px;padding:8px;flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-shrink:0;}
+.nav>button{padding:5px 12px;border:none;border-radius:10px;cursor:pointer;font-size:16px;background:#e5e7eb;}
+.month-title{font-size:18px;font-weight:bold;}
+#todayBtn{font-size:11px;padding:3px 10px;background:#e0e7ff;color:#2563eb;border:none;border-radius:8px;cursor:pointer;font-weight:bold;display:block;margin-top:3px;}
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;flex-shrink:0;margin-bottom:4px;}
+.weekday{background:#2563eb;color:white;padding:5px 2px;border-radius:6px;text-align:center;font-size:13px;font-weight:bold;}
+#daysWrapper{flex:1;overflow:hidden;position:relative;min-height:0;}
+.days{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:1fr;gap:4px;height:100%;will-change:transform;}
+.day{background:white;border-radius:8px;padding:4px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;flex-direction:column;justify-content:space-between;border:2px solid transparent;min-height:0;overflow:hidden;}
+.day:active{background:#f0f4ff;}
+.today{border-color:#2563eb;}
+.friday{background:#dbeafe;}
+.saturday{background:#fee2e2;}
+.day-number{font-size:13px;font-weight:bold;line-height:1;}
+.holiday-text{font-size:8px;font-weight:bold;color:#b91c1c;line-height:1.2;display:block;}
+.erev-text{font-size:8px;font-weight:bold;color:#d97706;line-height:1.2;display:block;}
+.note-count{font-size:13px;color:#2563eb;font-weight:bold;}
+.week-num-cell{background:#f0f4ff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#6b7280;min-height:0;}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;justify-content:center;align-items:center;z-index:100;}
+.modal-content{background:white;width:100%;height:100%;padding:20px 16px 16px;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;}
+.modal-header{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-shrink:0;}
+.modal-header h2{margin:0;font-size:19px;}
+.back-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:0;}
+.date-label{font-size:13px;color:#666;margin-bottom:8px;flex-shrink:0;}
+.modal-footer{margin-top:10px;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;}
+.btn{font-size:16px;padding:9px 18px;border-radius:12px;border:none;cursor:pointer;}
+.btn-gray{background:#e5e7eb;}
+.btn-blue{background:#2563eb;color:white;}
+.btn-red{background:#fee2e2;color:#b91c1c;}
+.submenu-box{background:white;border-radius:20px;padding:20px;width:90%;max-width:360px;display:flex;flex-direction:column;gap:12px;}
+.submenu-btn{padding:14px;border:none;border-radius:14px;background:#f3f4f6;font-size:17px;font-weight:600;cursor:pointer;text-align:left;}
+.submenu-btn:active{background:#dbeafe;}
+.work-table{width:100%;border-collapse:collapse;font-size:15px;}
+.work-table td{padding:6px 8px;border-bottom:1px solid #e5e7eb;}
+.work-table td:last-child{font-weight:bold;text-align:right;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <h1 id="titleEl">Календарь Израиля</h1>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <button onclick="exportNotes()" style="background:#d1fae5;color:#065f46;">💾</button>
+      <button onclick="document.getElementById('importFile').click()" style="background:#dbeafe;color:#1e40af;">📂</button>
+      <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importNotes(event)">
+      <button id="wkBtn" onclick="toggleWeekNums()">№ нед.</button>
+      <button id="ruBtn" class="active" onclick="setLang('ru')">Рус</button>
+      <button id="heBtn" onclick="setLang('he')">עב</button>
+    </div>
+  </div>
+  <div class="calendar">
+    <div class="nav">
+      <button onclick="changeMonth(-1)">◀</button>
+      <div style="text-align:center;">
+        <div class="month-title" id="monthTitle"></div>
+        <button id="todayBtn" onclick="goToday()"></button>
+      </div>
+      <button onclick="changeMonth(1)">▶</button>
+    </div>
+    <div class="weekdays" id="weekdays"></div>
+    <div id="daysWrapper"><div class="days" id="days"></div></div>
+  </div>
+</div>
+
+<!-- SUBMENU -->
+<div class="modal" id="submenu">
+  <div class="submenu-box">
+    <div id="submenuDate" style="font-size:17px;font-weight:bold;color:#374151;"></div>
+    <div id="submenuHoliday"></div>
+    <button class="submenu-btn" onclick="openNoteModal()">📝 Заметка</button>
+    <button class="submenu-btn" onclick="openWorkModal()">⏱ Рабочий день</button>
+    <button class="submenu-btn" onclick="openListModal()">☑ Список</button>
+    <button class="btn btn-gray" onclick="closeAll()">Закрыть</button>
+  </div>
+</div>
+
+<!-- MODAL NOTE -->
+<div class="modal" id="modalNote">
+  <div class="modal-content">
+    <div class="modal-header">
+      <button class="back-btn" onclick="closeAll();openMenu(currentDate)">←</button>
+      <h2>📝 Заметки</h2>
+    </div>
+    <div class="date-label" id="noteDateLabel"></div>
+    <div id="notesList" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;min-height:0;"></div>
+    <textarea id="noteText" placeholder="Новая заметка…" style="flex:none;height:110px;font-size:19px;line-height:1.6;padding:10px;border-radius:12px;box-sizing:border-box;margin-top:10px;resize:none;border:2px solid #ddd;font-family:Arial,sans-serif;width:100%;"></textarea>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeAll()">Закрыть</button>
+      <button class="btn btn-blue" onclick="saveNote()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL WORK -->
+<div class="modal" id="modalWork">
+  <div class="modal-content">
+    <div class="modal-header">
+      <button class="back-btn" onclick="closeAll();openMenu(currentDate)">←</button>
+      <h2>⏱ Рабочий день</h2>
+    </div>
+    <div class="date-label" id="workDateLabel"></div>
+
+    <!-- Тип дня -->
+    <div style="flex-shrink:0;margin-bottom:10px;">
+      <label style="font-size:13px;color:#6b7280;">Тип дня</label>
+      <select id="workType" onchange="onWorkTypeChange()" style="width:100%;padding:8px;border-radius:10px;border:1px solid #ddd;font-size:15px;margin-top:4px;">
+        <option value="work">✅ Рабочий</option>
+        <option value="vacation">🏖 Отпуск</option>
+        <option value="sick">🤒 Больничный</option>
+        <option value="holiday">✡ Праздник</option>
+        <option value="absent">❌ Не отработан</option>
+      </select>
+    </div>
+
+    <!-- Время прихода / ухода (только для рабочего дня) -->
+    <div id="timeFields" style="flex-shrink:0;margin-bottom:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:13px;color:#6b7280;">Приход</label>
+          <input id="timeIn" type="time" onchange="calcHours()" style="width:100%;padding:8px;border-radius:10px;border:1px solid #ddd;font-size:16px;margin-top:4px;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:13px;color:#6b7280;">Уход</label>
+          <input id="timeOut" type="time" onchange="calcHours()" style="width:100%;padding:8px;border-radius:10px;border:1px solid #ddd;font-size:16px;margin-top:4px;box-sizing:border-box;">
+        </div>
+      </div>
+      <!-- Итого за день -->
+      <div id="dayTotal" style="margin-top:8px;padding:8px 12px;background:#f0fdf4;border-radius:10px;font-size:15px;color:#065f46;font-weight:bold;display:none;"></div>
+    </div>
+
+    <!-- Часов вручную (если нет времени) -->
+    <div id="manualHours" style="flex-shrink:0;margin-bottom:10px;display:none;">
+      <label style="font-size:13px;color:#6b7280;">Часов (вручную)</label>
+      <input id="workHours" type="number" min="0" max="24" step="0.5" value="8" style="width:100%;padding:8px;border-radius:10px;border:1px solid #ddd;font-size:15px;margin-top:4px;box-sizing:border-box;">
+    </div>
+
+    <!-- Примечание -->
+    <div style="flex-shrink:0;margin-bottom:10px;">
+      <label style="font-size:13px;color:#6b7280;">Примечание</label>
+      <input id="workNote" type="text" placeholder="Необязательно…" style="width:100%;padding:8px;border-radius:10px;border:1px solid #ddd;font-size:15px;margin-top:4px;box-sizing:border-box;">
+    </div>
+
+    <!-- Сводка за месяц -->
+    <div style="flex:1;overflow-y:auto;min-height:0;">
+      <div style="font-size:14px;font-weight:bold;color:#374151;margin-bottom:6px;">📊 Сводка за месяц</div>
+      <div id="workSummary"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeAll()">Закрыть</button>
+      <button class="btn btn-blue" onclick="saveWork()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LIST -->
+<div class="modal" id="modalList">
+  <div class="modal-content">
+    <div class="modal-header">
+      <button class="back-btn" onclick="closeAll();openMenu(currentDate)">←</button>
+      <h2>☑ Список</h2>
+    </div>
+    <div class="date-label" id="listDateLabel"></div>
+    <div id="checklistItems" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px;min-height:0;"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-shrink:0;">
+      <input id="listInput" type="text" placeholder="Новый пункт…" style="flex:1;padding:10px;border-radius:10px;border:2px solid #ddd;font-size:17px;font-family:Arial,sans-serif;">
+      <button onclick="addListItem()" style="padding:10px 16px;border-radius:10px;border:none;background:#2563eb;color:white;font-size:18px;cursor:pointer;">+</button>
+    </div>
+    <div style="margin-top:10px;display:flex;justify-content:space-between;gap:8px;flex-shrink:0;">
+      <button class="btn btn-red" onclick="clearChecked()">Удалить отмеченные</button>
+      <button class="btn btn-gray" onclick="closeAll()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const T={
+  ru:{title:'Календарь Израиля',months:['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],weekdays:['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],today:'Сегодня'},
+  he:{title:'לוח שנה ישראלי',months:['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'],weekdays:['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'],today:'היום'}
+};
+
+const HOLIDAYS={
+  '2026-02-02':{ru:'Ту би-Шват',he:'ט״ו בשבט'},
+  '2026-03-02':{ru:'Эрев Пурим',he:'ערב פורים'},
+  '2026-03-03':{ru:'Пурим',he:'פורים'},
+  '2026-03-04':{ru:'Шушан Пурим',he:'שושן פורים'},
+  '2026-04-01':{ru:'Эрев Песах',he:'ערב פסח'},
+  '2026-04-02':{ru:'Песах I',he:'פסח א׳'},
+  '2026-04-03':{ru:'Холь га-Моэд',he:'חול המועד פסח'},
+  '2026-04-04':{ru:'Холь га-Моэд',he:'חול המועד פסח'},
+  '2026-04-05':{ru:'Холь га-Моэд',he:'חול המועד פסח'},
+  '2026-04-06':{ru:'Холь га-Моэд',he:'חול המועד פסח'},
+  '2026-04-07':{ru:'Холь га-Моэד',he:'חול המועד פסח'},
+  '2026-04-08':{ru:'Песах VII',he:'פסח ז׳'},
+  '2026-04-22':{ru:'Йом га-Шоа',he:'יום השואה'},
+  '2026-04-29':{ru:'Йом га-Зикарон',he:'יום הזיכרון'},
+  '2026-04-30':{ru:'День независимости',he:'יום העצמאות'},
+  '2026-05-04':{ru:'Эрев Лаг ба-Омер',he:'ערב ל״ג בעומר'},
+  '2026-05-05':{ru:'Лаг ба-Омер',he:'ל״ג בעומר'},
+  '2026-05-21':{ru:'Эрев Шавуот',he:'ערב שבועות'},
+  '2026-05-22':{ru:'Шавуот',he:'שבועות'},
+  '2026-07-22':{ru:'Эрев Тиша бе-Ав',he:'ערב תשעה באב'},
+  '2026-07-23':{ru:'Тиша бе-Ав',he:'תשעה באב'},
+  '2026-09-11':{ru:'Эрев Рош га-Шана',he:'ערב ראש השנה'},
+  '2026-09-12':{ru:'Рош га-Шана I',he:'ראש השנה א׳'},
+  '2026-09-13':{ru:'Рош га-Шана II',he:'ראש השנה ב׳'},
+  '2026-09-20':{ru:'Эрев Йом Кипур',he:'ערב יום כיפור'},
+  '2026-09-21':{ru:'Йом Кипур',he:'יום כיפור'},
+  '2026-09-25':{ru:'Эрев Суккот',he:'ערב סוכות'},
+  '2026-09-26':{ru:'Суккот I',he:'סוכות א׳'},
+  '2026-09-27':{ru:'Холь га-Моэд',he:'חול המועד סוכות'},
+  '2026-09-28':{ru:'Холь га-Моэд',he:'חול המועד סוכות'},
+  '2026-09-29':{ru:'Холь га-Моэд',he:'חול המועד סוכות'},
+  '2026-09-30':{ru:'Холь га-Моэд',he:'חול המועד סוכות'},
+  '2026-10-01':{ru:'Хошана Раба',he:'הושענא רבה'},
+  '2026-10-02':{ru:'Шмини Ацерет',he:'שמיני עצרת / שמחת תורה'},
+  '2026-12-04':{ru:'Эрев Ханука',he:'ערב חנוכה'},
+  '2026-12-05':{ru:'Ханука I',he:'חנוכה א׳'},
+  '2026-12-06':{ru:'Ханука II',he:'חנוכה ב׳'},
+  '2026-12-07':{ru:'Ханука III',he:'חנוכה ג׳'},
+  '2026-12-08':{ru:'Ханука IV',he:'חנוכה ד׳'},
+  '2026-12-09':{ru:'Ханука V',he:'חנוכה ה׳'},
+  '2026-12-10':{ru:'Ханука VI',he:'חנוכה ו׳'},
+  '2026-12-11':{ru:'Ханука VII',he:'חנוכה ז׳'},
+  '2026-12-12':{ru:'Ханука VIII',he:'חנוכה ח׳'}
+};
+
+let language='ru', currentYear=2026, currentMonth=new Date().getMonth(), currentDate='', showWeekNums=false;
+let notes=JSON.parse(localStorage.getItem('calendar_notes')||'{}');
+
+// ── JSONBIN SYNC ─────────────────────────────
+const JB_BIN='6a05ab3cc0954111d820e53d';
+const JB_KEY='$2a$10$cQ0UTVea/e91kfzSuufM1.SXRz2cqOZ7omBG9KghD8beiTcWVFIL.';
+const JB_URL='https://api.jsonbin.io/v3/b/'+JB_BIN;
+const JB_HDR={'Content-Type':'application/json','X-Master-Key':JB_KEY,'X-Bin-Versioning':'false'};
+
+function showSync(msg,color){
+  let el=document.getElementById('syncStatus');
+  if(!el){el=document.createElement('div');el.id='syncStatus';el.style.cssText='position:fixed;bottom:14px;left:50%;transform:translateX(-50%);padding:7px 18px;border-radius:20px;font-size:13px;font-weight:bold;z-index:9999;transition:opacity 0.5s;pointer-events:none;';document.body.appendChild(el);}
+  el.style.background=color||'#1e40af';el.style.color='white';el.style.opacity='1';el.innerText=msg;
+  clearTimeout(el._t);el._t=setTimeout(()=>el.style.opacity='0',2500);
+}
+
+async function saveToCloud(){
+  try{
+    await fetch(JB_URL,{method:'PUT',headers:JB_HDR,body:JSON.stringify({notes:notes})});
+    showSync('☁️ Сохранено','#065f46');
+  }catch(e){showSync('⚠️ Нет связи','#b91c1c');}
+}
+
+async function loadFromCloud(){
+  showSync('🔄 Синхронизация...','#6b7280');
+  try{
+    const r=await fetch(JB_URL+'/latest',{headers:JB_HDR});
+    if(!r.ok) throw new Error();
+    const data=await r.json();
+    if(data.record&&data.record.notes){
+      notes=data.record.notes;
+      localStorage.setItem('calendar_notes',JSON.stringify(notes));
+    }
+    showSync('✅ Синхронизировано','#065f46');
+    renderCalendar();
+  }catch(e){showSync('📴 Работа офлайн','#b91c1c');}
+}
+
+function mkKey(y,m,d){return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+
+function ensureData(k){
+  const d=notes[k];
+  if(!d||typeof d==='string'||Array.isArray(d)){
+    const old=d; notes[k]={text:[],work:null,list:[]};
+    if(typeof old==='string'&&old.trim()) notes[k].text=[old];
+    if(Array.isArray(old)&&old.length) notes[k].text=old;
+  }
+  if(!notes[k].text) notes[k].text=[];
+  if(!notes[k].list) notes[k].list=[];
+}
+
+function countItems(k){
+  const d=notes[k];
+  if(!d) return 0;
+  if(typeof d==='string') return d.trim()?1:0;
+  if(Array.isArray(d)) return d.length;
+  return (d.text?d.text.length:0)+(d.work?1:0)+(d.list?d.list.length:0);
+}
+
+function saveAll(){
+  localStorage.setItem('calendar_notes',JSON.stringify(notes));
+  saveToCloud();
+  renderCalendar();
+}
+
+function getWeekNumber(date){
+  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
+  const day=d.getUTCDay(), mb=(day+6)%7;
+  d.setUTCDate(d.getUTCDate()-mb+3);
+  const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil(((d-ys)/86400000+1)/7);
+}
+
+function renderCalendar(){
+  document.body.dir='ltr';
+  const t=T[language];
+  document.getElementById('titleEl').innerText=t.title;
+  document.getElementById('monthTitle').innerText=t.months[currentMonth]+' '+currentYear;
+  document.getElementById('todayBtn').innerText=t.today;
+  const cols=showWeekNums?8:7;
+  const wdEl=document.getElementById('weekdays');
+  wdEl.style.gridTemplateColumns='repeat('+cols+',1fr)';
+  wdEl.innerHTML='';
+  if(showWeekNums) wdEl.innerHTML+='<div class="weekday" style="background:#6b7280;">W</div>';
+  t.weekdays.forEach(d=>wdEl.innerHTML+='<div class="weekday">'+d+'</div>');
+  const dEl=document.getElementById('days');
+  dEl.style.gridTemplateColumns='repeat('+cols+',1fr)';
+  dEl.style.transform='translateX(0)'; dEl.style.transition='none'; dEl.innerHTML='';
+  const firstDay=new Date(currentYear,currentMonth,1).getDay();
+  const daysCount=new Date(currentYear,currentMonth+1,0).getDate();
+  const todayD=new Date();
+  const cells=[];
+  for(let i=0;i<firstDay;i++) cells.push(null);
+  for(let d=1;d<=daysCount;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+  for(let row=0;row<cells.length/7;row++){
+    if(showWeekNums){
+      let wn='';
+      const monDay=cells[row*7+1];
+      if(monDay!==null){wn=getWeekNumber(new Date(currentYear,currentMonth,monDay));}
+      else{for(let c=0;c<7;c++){const dd=cells[row*7+c];if(dd!==null){const dt=new Date(currentYear,currentMonth,dd);const dow=dt.getDay();const off=dow===0?-6:1-dow;const mon=new Date(dt);mon.setDate(dt.getDate()+off);wn=getWeekNumber(mon);break;}}}
+      dEl.innerHTML+='<div class="week-num-cell">'+wn+'</div>';
+    }
+    for(let c=0;c<7;c++){
+      const day=cells[row*7+c];
+      if(day===null){dEl.innerHTML+='<div></div>';continue;}
+      const key=mkKey(currentYear,currentMonth+1,day);
+      const hol=HOLIDAYS[key];
+      const isErev=hol&&(hol.ru.startsWith('Эрев')||hol.he.startsWith('\u05E2\u05E8\u05D1'));
+      const isToday=todayD.getDate()===day&&todayD.getMonth()===currentMonth&&todayD.getFullYear()===currentYear;
+      const wd=new Date(currentYear,currentMonth,day).getDay();
+      const cnt=countItems(key);
+      let cls='day';
+      if(wd===5) cls+=' friday';
+      if(wd===6) cls+=' saturday';
+      if(isToday) cls+=' today';
+      dEl.innerHTML+='<div class="'+cls+'" onclick="openMenu(\''+key+'\')"><div class="day-number">'+day+'</div>'+(hol&&!isErev?'<div class="holiday-text">\u271D '+hol[language]+'</div>':'')+(hol&&isErev?'<div class="erev-text">\uD83C\uDF19 '+hol[language]+'</div>':'')+(cnt?'<div class="note-count">\uD83D\uDCDD'+cnt+'</div>':'')+'</div>';
+    }
+  }
+}
+
+function changeMonth(dir){
+  currentMonth+=dir;
+  if(currentMonth<0){currentMonth=11;currentYear--;}
+  if(currentMonth>11){currentMonth=0;currentYear++;}
+  renderCalendar();
+}
+function goToday(){const n=new Date();currentYear=n.getFullYear();currentMonth=n.getMonth();renderCalendar();}
+function setLang(lang){
+  language=lang;
+  document.getElementById('ruBtn').classList.toggle('active',lang==='ru');
+  document.getElementById('heBtn').classList.toggle('active',lang==='he');
+  renderCalendar();
+}
+function toggleWeekNums(){
+  showWeekNums=!showWeekNums;
+  const btn=document.getElementById('wkBtn');
+  btn.style.background=showWeekNums?'#2563eb':'#e5e7eb';
+  btn.style.color=showWeekNums?'white':'';
+  renderCalendar();
+}
+
+function closeAll(){['submenu','modalNote','modalWork','modalList'].forEach(id=>document.getElementById(id).style.display='none');}
+
+function holidayHTML(key){
+  const hol=HOLIDAYS[key]; if(!hol) return '';
+  const isErev=hol.ru.startsWith('Эрев')||hol.he.startsWith('\u05E2\u05E8\u05D1');
+  return '<div style="background:'+(isErev?'#fef3c7':'#fee2e2')+';border-radius:10px;padding:7px 12px;font-size:15px;font-weight:bold;color:'+(isErev?'#92400e':'#991b1b')+';margin-bottom:6px;">'+(isErev?'🌙':'✡')+' '+hol[language]+'</div>';
+}
+
+function openMenu(key){
+  currentDate=key;
+  ensureData(key);
+  closeAll();
+  document.getElementById('submenuDate').innerText=key;
+  document.getElementById('submenuHoliday').innerHTML=holidayHTML(key);
+  document.getElementById('submenu').style.display='flex';
+}
+
+// NOTE
+function openNoteModal(){
+  document.getElementById('submenu').style.display='none';
+  document.getElementById('noteDateLabel').innerText=currentDate;
+  document.getElementById('noteText').value='';
+  renderNotesList();
+  document.getElementById('modalNote').style.display='flex';
+}
+function renderNotesList(){
+  const arr=notes[currentDate]&&notes[currentDate].text||[];
+  const el=document.getElementById('notesList');
+  if(!arr.length){el.innerHTML='<div style="color:#aaa;font-size:15px;">Нет заметок</div>';return;}
+  el.innerHTML=arr.map((n,i)=>'<div style="background:#f3f4f6;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><div style="font-size:17px;flex:1;white-space:pre-wrap;">'+n+'</div><button onclick="deleteNote('+i+')" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;padding:3px 9px;font-size:15px;cursor:pointer;flex-shrink:0;">✕</button></div>').join('');
+}
+function saveNote(){
+  const val=document.getElementById('noteText').value.trim();
+  if(!val) return;
+  ensureData(currentDate);
+  notes[currentDate].text.push(val);
+  document.getElementById('noteText').value='';
+  saveAll(); renderNotesList();
+}
+function deleteNote(i){
+  ensureData(currentDate);
+  notes[currentDate].text.splice(i,1);
+  saveAll(); renderNotesList();
+}
+
+// WORK
+function onWorkTypeChange(){
+  const isWork = document.getElementById('workType').value === 'work';
+  document.getElementById('timeFields').style.display  = isWork ? 'block' : 'none';
+  document.getElementById('manualHours').style.display = isWork ? 'none'  : 'block';
+  if(!isWork) document.getElementById('dayTotal').style.display='none';
+}
+
+function calcHours(){
+  const tin  = document.getElementById('timeIn').value;
+  const tout = document.getElementById('timeOut').value;
+  const el   = document.getElementById('dayTotal');
+  if(!tin || !tout){ el.style.display='none'; return; }
+  const [h1,m1] = tin.split(':').map(Number);
+  const [h2,m2] = tout.split(':').map(Number);
+  let mins = (h2*60+m2) - (h1*60+m1);
+  if(mins < 0) mins += 24*60; // overnight
+  const h = Math.floor(mins/60), m = mins%60;
+  el.style.display = 'block';
+  el.innerText = '⏱ Итого: ' + h + ' ч ' + (m ? m + ' мин' : '');
+}
+
+function openWorkModal(){
+  document.getElementById('submenu').style.display='none';
+  document.getElementById('workDateLabel').innerText=currentDate;
+  ensureData(currentDate);
+  const w=notes[currentDate].work;
+  document.getElementById('workType').value  = w ? w.type  : 'work';
+  document.getElementById('timeIn').value    = w ? (w.timeIn  || '') : '';
+  document.getElementById('timeOut').value   = w ? (w.timeOut || '') : '';
+  document.getElementById('workHours').value = w ? (w.hours || 8) : 8;
+  document.getElementById('workNote').value  = w ? (w.note  || '') : '';
+  onWorkTypeChange();
+  calcHours();
+  renderWorkSummary();
+  document.getElementById('modalWork').style.display='flex';
+}
+
+function saveWork(){
+  ensureData(currentDate);
+  const type    = document.getElementById('workType').value;
+  const timeIn  = document.getElementById('timeIn').value;
+  const timeOut = document.getElementById('timeOut').value;
+  let hours     = parseFloat(document.getElementById('workHours').value) || 0;
+  // if time fields filled — calculate hours from them
+  if(type==='work' && timeIn && timeOut){
+    const [h1,m1]=timeIn.split(':').map(Number);
+    const [h2,m2]=timeOut.split(':').map(Number);
+    let mins=(h2*60+m2)-(h1*60+m1);
+    if(mins<0) mins+=24*60;
+    hours=Math.round(mins/60*100)/100;
+  }
+  notes[currentDate].work={
+    type, timeIn, timeOut, hours,
+    note: document.getElementById('workNote').value.trim()
+  };
+  saveAll(); renderWorkSummary();
+}
+
+function fmtHours(h){
+  const hh=Math.floor(h), mm=Math.round((h-hh)*60);
+  return hh+'ч'+(mm?' '+mm+'м':'');
+}
+
+function renderWorkSummary(){
+  const parts=currentDate.split('-'); const y=parseInt(parts[0]),m=parseInt(parts[1]);
+  const daysInMonth=new Date(y,m,0).getDate();
+  let worked=0, workedMins=0, vacation=0, sick=0, holiday=0, absent=0;
+  const dayRows=[];
+  for(let d=1;d<=daysInMonth;d++){
+    const k=mkKey(y,m,d); const nd=notes[k];
+    if(!nd||!nd.work) continue;
+    const w=nd.work;
+    if(w.type==='work'){
+      worked++;
+      const mins=Math.round((w.hours||0)*60);
+      workedMins+=mins;
+      const timeStr=(w.timeIn&&w.timeOut)?(w.timeIn+' – '+w.timeOut):'';
+      dayRows.push('<tr><td>'+d+'</td><td>'+timeStr+'</td><td>'+fmtHours(w.hours||0)+'</td></tr>');
+    }
+    if(w.type==='vacation') vacation++;
+    if(w.type==='sick') sick++;
+    if(w.type==='holiday') holiday++;
+    if(w.type==='absent') absent++;
+  }
+  const totalH=Math.floor(workedMins/60), totalM=workedMins%60;
+  const totalStr=totalH+'ч'+(totalM?' '+totalM+'м':'');
+
+  document.getElementById('workSummary').innerHTML=
+    '<table class="work-table" style="margin-bottom:10px;">'
+    +'<tr><td>✅ Рабочих дней</td><td>'+worked+'</td></tr>'
+    +'<tr><td>⏱ Всего часов</td><td>'+totalStr+'</td></tr>'
+    +'<tr><td>🏖 Отпуск</td><td>'+vacation+'</td></tr>'
+    +'<tr><td>🤒 Больничный</td><td>'+sick+'</td></tr>'
+    +'<tr><td>✡ Праздник</td><td>'+holiday+'</td></tr>'
+    +'<tr><td>❌ Не отработано</td><td>'+absent+'</td></tr>'
+    +'</table>'
+    +(dayRows.length
+      ? '<div style="font-size:13px;font-weight:bold;color:#374151;margin-bottom:4px;">По дням:</div>'
+        +'<table class="work-table"><tr style="background:#f3f4f6;"><td><b>День</b></td><td><b>Время</b></td><td><b>Часы</b></td></tr>'
+        +dayRows.join('')+'</table>'
+      : '');
+}
+
+// LIST
+function openListModal(){
+  document.getElementById('submenu').style.display='none';
+  document.getElementById('listDateLabel').innerText=currentDate;
+  document.getElementById('listInput').value='';
+  renderChecklist();
+  document.getElementById('modalList').style.display='flex';
+}
+function renderChecklist(){
+  ensureData(currentDate);
+  const items=notes[currentDate].list||[];
+  const el=document.getElementById('checklistItems');
+  if(!items.length){el.innerHTML='<div style="color:#aaa;font-size:15px;">Список пуст</div>';return;}
+  el.innerHTML=items.map((item,i)=>'<div style="display:flex;align-items:center;gap:10px;background:#f9fafb;border-radius:10px;padding:10px 12px;"><input type="checkbox" '+(item.done?'checked':'')+' onchange="toggleItem('+i+')" style="width:20px;height:20px;cursor:pointer;flex-shrink:0;"><span style="flex:1;font-size:16px;'+(item.done?'text-decoration:line-through;color:#9ca3af':'')+'">' +item.text+'</span><button onclick="deleteItem('+i+')" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;padding:3px 9px;font-size:14px;cursor:pointer;">✕</button></div>').join('');
+}
+function addListItem(){
+  const val=document.getElementById('listInput').value.trim();
+  if(!val) return;
+  ensureData(currentDate);
+  notes[currentDate].list.push({text:val,done:false});
+  document.getElementById('listInput').value='';
+  saveAll(); renderChecklist();
+}
+document.getElementById('listInput').addEventListener('keydown',e=>{if(e.key==='Enter') addListItem();});
+function toggleItem(i){ensureData(currentDate);notes[currentDate].list[i].done=!notes[currentDate].list[i].done;saveAll();renderChecklist();}
+function deleteItem(i){ensureData(currentDate);notes[currentDate].list.splice(i,1);saveAll();renderChecklist();}
+function clearChecked(){ensureData(currentDate);notes[currentDate].list=notes[currentDate].list.filter(i=>!i.done);saveAll();renderChecklist();}
+
+// EXPORT / IMPORT
+function exportNotes(){
+  const blob=new Blob([JSON.stringify(notes,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download='calendar_notes_'+new Date().toISOString().split('T')[0]+'.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+function importNotes(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const imp=JSON.parse(e.target.result);
+      if(typeof imp!=='object'||Array.isArray(imp)) throw new Error();
+      let added=0;
+      for(const [date,val] of Object.entries(imp)){
+        ensureData(date);
+        if(val&&val.text) val.text.forEach(n=>{if(!notes[date].text.includes(n)){notes[date].text.push(n);added++;}});
+        if(val&&val.work&&!notes[date].work){notes[date].work=val.work;added++;}
+        if(val&&val.list) val.list.forEach(item=>{notes[date].list.push(item);added++;});
+      }
+      saveAll(); alert('Импорт завершён. Добавлено: '+added);
+    }catch{alert('Ошибка: неверный формат файла.');}
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// SWIPE
+let txStart=0,tyStart=0,swiping=false;
+const getEl=()=>document.getElementById('days');
+const getWrap=()=>document.getElementById('daysWrapper');
+const isModalOpen=()=>['submenu','modalNote','modalWork','modalList'].some(id=>document.getElementById(id).style.display==='flex');
+
+document.addEventListener('touchstart',e=>{if(isModalOpen()) return;txStart=e.touches[0].clientX;tyStart=e.touches[0].clientY;swiping=false;getEl().style.transition='none';},{passive:true});
+document.addEventListener('touchmove',e=>{if(isModalOpen()) return;const dx=e.touches[0].clientX-txStart,dy=e.touches[0].clientY-tyStart;if(!swiping){if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>8) swiping=true;else if(Math.abs(dy)>8) return;}if(swiping) getEl().style.transform='translateX('+dx+'px)';},{passive:true});
+document.addEventListener('touchend',e=>{if(isModalOpen()||!swiping){swiping=false;return;}const dx=e.changedTouches[0].clientX-txStart,el=getEl(),W=getWrap().offsetWidth;if(Math.abs(dx)>W*0.28){const dir=dx<0?1:-1,outX=dx<0?-W:W;el.style.transition='transform 0.25s cubic-bezier(0.4,0,0.2,1)';el.style.transform='translateX('+outX+'px)';setTimeout(()=>{el.style.transition='none';el.style.transform='translateX('+(-outX)+'px)';changeMonth(dir);requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.transition='transform 0.25s cubic-bezier(0.4,0,0.2,1)';el.style.transform='translateX(0)';setTimeout(()=>el.style.transition='',260);}));},260);}else{el.style.transition='transform 0.2s cubic-bezier(0.4,0,0.2,1)';el.style.transform='translateX(0)';setTimeout(()=>el.style.transition='',220);}swiping=false;},{passive:true});
+
+renderCalendar();
+loadFromCloud();
+</script>
+</body>
+</html>
